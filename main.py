@@ -1,5 +1,6 @@
 import csv
-from twitchdl.commands.download import download
+from pathlib import Path
+from twitchdl.commands.download import download_one
 from twitchdl.cache import get_cache_dir
 from twitchdl.twitch import channel_videos_generator
 
@@ -12,14 +13,6 @@ class DotDict(dict):
     __delattr__ = dict.__delitem__
 
 
-'''
-File with streamers: channel_name and last video id downloaded.
-Then, go for each streamers:
-    check the last videos, check if any is new
-    download every new videos -> one folder for each streamer
-update the file with the idea
-'''
-
 def read_streamers_csv() -> list[dict]:
     """To read the CSV containing the id of the last video download for x streamer."""
     with open("streamers.csv", "r", newline="") as csvFile:
@@ -28,8 +21,20 @@ def read_streamers_csv() -> list[dict]:
     return streamers_video_list
 
 
-def download_process():
-    id = "2486760617"
+def get_new_vods_id(streamer: str, last_vod_downloaded_id: str) -> list[str]:
+    last_vod_downloaded_id = int(last_vod_downloaded_id)
+    _, generator = channel_videos_generator(channel_id=streamer, max_videos=40, sort="time", type="archive")
+    videos = list(generator)
+    new_vods = []
+    for video in videos:
+        if int(video["id"]) == last_vod_downloaded_id:
+            break
+        new_vods.insert(0, video["id"])
+    return new_vods
+
+
+def download_process(streamer: str, id: str):
+    Path(f"vods/{streamer}").mkdir(parents=True, exist_ok=True)
     download_args = DotDict(
                 {
                     "format": "mp4",
@@ -41,16 +46,26 @@ def download_process():
                     "start": None,
                     "end": None,
                     "cache_dir": f"{get_cache_dir()}/videos/{id}/",
-                    "output": "vods/{date}_{id}_{channel_login}_{title_slug}.{format}",
+                    "output": f"vods/{streamer}" + "/{date}_{id}_{channel_login}_{title_slug}.{format}",
                 }
             )
-    download([id], download_args)
+    download_one(id, download_args)
+
+
+def write_streamers_csv(streamers_video_list):
+    """To write the CSV containing the id of the last video download for x streamer."""
+    with open("streamers.csv", "w", newline="") as csvFile:
+        fieldnames = ['streamer', 'video_id']
+        writer = csv.DictWriter(csvFile, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(streamers_video_list)
 
 
 if __name__ == "__main__":
     streamers_video_list = read_streamers_csv()
-    print(streamers_video_list)
-
-# total_count, generator = channel_videos_generator(channel_id="lumi_pomme", max_videos=40, sort="time", type="archive")
-# print(total_count)
-# print(list(generator))
+    for streamer in streamers_video_list:
+        new_vods = get_new_vods_id(streamer["streamer"], streamer["video_id"])
+        for new_vod in new_vods:
+            download_process(streamer["streamer"], new_vod)
+            streamer["video_id"] = new_vod
+            write_streamers_csv(streamers_video_list)
