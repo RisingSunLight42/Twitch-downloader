@@ -22,6 +22,7 @@ def read_streamers_csv() -> list[dict]:
 
 
 def get_new_vods_id(streamer: str, last_vod_downloaded_id: str) -> list[str]:
+    """Get new vods id, list returned is sort by older to newer."""
     last_vod_downloaded_id = int(last_vod_downloaded_id)
     _, generator = channel_videos_generator(channel_id=streamer, max_videos=40, sort="time", type="archive")
     videos = list(generator)
@@ -34,6 +35,7 @@ def get_new_vods_id(streamer: str, last_vod_downloaded_id: str) -> list[str]:
 
 
 def download_process(streamer: str, id: str):
+    """Download the given vod id, in the streamer folder."""
     Path(f"vods/{streamer}").mkdir(parents=True, exist_ok=True)
     download_args = DotDict(
                 {
