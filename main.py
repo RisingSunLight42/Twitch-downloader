@@ -1,4 +1,4 @@
-import os
+import csv
 from twitchdl.commands.download import download
 from twitchdl.cache import get_cache_dir
 from twitchdl.twitch import channel_videos_generator
@@ -20,6 +20,14 @@ Then, go for each streamers:
 update the file with the idea
 '''
 
+def read_streamers_csv() -> list[dict]:
+    """To read the CSV containing the id of the last video download for x streamer."""
+    with open("streamers.csv", "r", newline="") as csvFile:
+        reader = csv.DictReader(csvFile)
+        streamers_video_list = [row for row in reader]
+    return streamers_video_list
+
+
 def download_process():
     id = "2486760617"
     download_args = DotDict(
@@ -38,10 +46,10 @@ def download_process():
             )
     download([id], download_args)
 
-download_process()
 
 if __name__ == "__main__":
-    pass
+    streamers_video_list = read_streamers_csv()
+    print(streamers_video_list)
 
 # total_count, generator = channel_videos_generator(channel_id="lumi_pomme", max_videos=40, sort="time", type="archive")
 # print(total_count)
