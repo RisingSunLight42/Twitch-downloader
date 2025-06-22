@@ -3,6 +3,8 @@ from pathlib import Path
 from twitchdl.commands.download import download_one
 from twitchdl.cache import get_cache_dir
 from twitchdl.twitch import channel_videos_generator
+import requests
+from time import sleep
 
 
 class DotDict(dict):
@@ -21,16 +23,32 @@ def read_streamers_csv() -> list[dict]:
     return streamers_video_list
 
 
+def is_streamer_live(channel_id: str) -> bool:
+    """Check if given streamer is currently live."""
+    is_live = False
+    for i in range(5):
+        contents = requests.get('https://www.twitch.tv/' +channel_id).content.decode('utf-8')
+        is_live = is_live or 'isLiveBroadcast' in contents
+        if is_live:
+            break
+        sleep(1)
+    return is_live
+
+
 def get_new_vods_id(streamer: str, last_vod_downloaded_id: str) -> list[str]:
     """Get new vods id, list returned is sort by older to newer."""
     last_vod_downloaded_id = int(last_vod_downloaded_id)
     _, generator = channel_videos_generator(channel_id=streamer, max_videos=40, sort="time", type="archive")
     videos = list(generator)
+    is_live = is_streamer_live(streamer)
+    if is_live:
+        videos.pop(0)
     new_vods = []
     for video in videos:
         if int(video["id"]) == last_vod_downloaded_id:
             break
         new_vods.insert(0, video["id"])
+    print(new_vods, streamer, is_live)
     return new_vods
 
 
