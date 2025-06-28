@@ -56,19 +56,19 @@ def download_process(streamer: str, id: str):
     """Download the given vod id, in the streamer folder."""
     Path(f"D:/vods/{streamer}").mkdir(parents=True, exist_ok=True)
     download_args = DotDict(
-                {
-                    "format": "mp4",
-                    "keep": False,
-                    "quality": "source",
-                    "max_workers": 20,
-                    "no_join": False,
-                    "overwrite": True,
-                    "start": None,
-                    "end": None,
-                    "cache_dir": f"{get_cache_dir()}/videos/{id}/",
-                    "output": f"D:/vods/{streamer}" + "/{date}_{id}_{channel_login}_{title_slug}.{format}",
-                }
-            )
+        {
+            "format": "mp4",
+            "keep": False,
+            "quality": "source",
+            "max_workers": 20,
+            "no_join": False,
+            "overwrite": True,
+            "start": None,
+            "end": None,
+            "cache_dir": f"{get_cache_dir()}/videos/{id}/",
+            "output": f"D:/vods/{streamer}" + "/{date}_{id}_{channel_login}_{title_slug}.{format}",
+        }
+    )
     download_one(id, download_args)
 
 
