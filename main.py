@@ -4,7 +4,6 @@ from twitchdl.commands.download import download_one
 from twitchdl.cache import get_cache_dir
 from twitchdl.twitch import channel_videos_generator
 import requests
-from time import sleep
 
 # idée amélioration : afficher les stats des VODs à DL (nombre, total de GB, total de durée...)
 # faire blacklist de certains mots dans les titres pour skip certaines vods inutiles (combo whitelist de streamers où on veut
