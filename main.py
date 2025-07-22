@@ -6,7 +6,9 @@ from twitchdl.twitch import channel_videos_generator
 import requests
 from time import sleep
 
-
+# idée amélioration : afficher les stats des VODs à DL (nombre, total de GB, total de durée...)
+# faire blacklist de certains mots dans les titres pour skip certaines vods inutiles (combo whitelist de streamers où on veut
+# tout DL anyway)
 class DotDict(dict):
     """dot.notation access to dictionary attributes"""
 
@@ -25,14 +27,8 @@ def read_streamers_csv() -> list[dict]:
 
 def is_streamer_live(channel_id: str) -> bool:
     """Check if given streamer is currently live."""
-    is_live = False
-    for i in range(5):
-        contents = requests.get('https://www.twitch.tv/' +channel_id).content.decode('utf-8')
-        is_live = is_live or 'isLiveBroadcast' in contents
-        if is_live:
-            break
-        sleep(1)
-    return is_live
+    content = requests.get("https://decapi.me/twitch/uptime/" + channel_id + "?offline_msg=off").content.decode("utf-8")
+    return not "off" in content
 
 
 def get_new_vods_id(streamer: str, last_vod_downloaded_id: str) -> list[str]:
