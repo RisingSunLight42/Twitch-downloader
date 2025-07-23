@@ -1,9 +1,11 @@
 import csv
+import requests
 from pathlib import Path
 from twitchdl.commands.download import download_one
 from twitchdl.cache import get_cache_dir
 from twitchdl.twitch import channel_videos_generator
-import requests
+from discord_webhook import DiscordWebhook
+from dotenv import dotenv_values
 
 # idée amélioration : afficher les stats des VODs à DL (nombre, total de GB, total de durée...)
 # faire blacklist de certains mots dans les titres pour skip certaines vods inutiles (combo whitelist de streamers où on veut
@@ -35,14 +37,16 @@ def get_new_vods_id(streamer: str, last_vod_downloaded_id: str) -> list[str]:
     last_vod_downloaded_id = int(last_vod_downloaded_id)
     _, generator = channel_videos_generator(channel_id=streamer, max_videos=40, sort="time", type="archive")
     videos = list(generator)
-    is_live = is_streamer_live(streamer)
-    if is_live:
-        videos.pop(0)
     new_vods = []
     for video in videos:
         if int(video["id"]) == last_vod_downloaded_id:
             break
         new_vods.insert(0, video["id"])
+    if len(new_vods) == 0:
+        return []
+    is_live = is_streamer_live(streamer)
+    if is_live:
+        new_vods.pop()
     print(new_vods, streamer, is_live)
     return new_vods
 
@@ -76,11 +80,26 @@ def write_streamers_csv(streamers_video_list):
         writer.writerows(streamers_video_list)
 
 
+def send_webhook(url: str, content: str, avatar_url: str = ""):
+    webhook = DiscordWebhook(
+        url=url,
+        content=content,
+        avatar_url=avatar_url
+    )
+    webhook.execute()
+
 if __name__ == "__main__":
     streamers_video_list = read_streamers_csv()
+    config = dotenv_values(".env")
+    send_webhook(
+        config["WEBHOOK_URL"], 
+        f"The download script is starting, {len(streamers_video_list)} streamers loaded.", 
+        "https://pbs.twimg.com/profile_images/1938396805336563712/Wihg-eQ-_400x400.jpg"
+    )
     for streamer in streamers_video_list:
         new_vods = get_new_vods_id(streamer["streamer"], streamer["video_id"])
         for new_vod in new_vods:
             download_process(streamer["streamer"], new_vod)
+            send_webhook(config["WEBHOOK_URL"], f"The VOD {new_vod} from the streamer {streamer['streamer']} has been properly downloaded.")
             streamer["video_id"] = new_vod
             write_streamers_csv(streamers_video_list)
