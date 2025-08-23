@@ -10,7 +10,7 @@ from twitchdl.naming import video_filename
 from twitchdl.entities import Video
 from discord_webhook import DiscordWebhook, DiscordEmbed
 from datetime import datetime, timezone, timedelta
-from dotenv import dotenv_values
+from dotenv import load_dotenv
 
 # idée amélioration : afficher les stats des VODs à DL (nombre, total de GB, total de durée...)
 # faire blacklist de certains mots dans les titres pour skip certaines vods inutiles (combo whitelist de streamers où on veut
@@ -44,7 +44,7 @@ def get_new_vods_id(streamer: str, last_vod_downloaded_id: str) -> list[str]:
     videos = list(generator)
     new_vods = []
     for video in videos:
-        if int(video["id"]) == last_vod_downloaded_id:
+        if int(video["id"]) <= int(last_vod_downloaded_id):
             break
         new_vods.insert(0, video["id"])
     if len(new_vods) == 0:
@@ -84,19 +84,22 @@ def write_streamers_csv(streamers_video_list):
         writer.writerows(streamers_video_list)
 
 
-def send_webhook(url: str, content: str, avatar_url: str = "", embed: DiscordEmbed = None) -> DiscordWebhook:
-    webhook = DiscordWebhook(
-        url=url,
-        content=content,
-        avatar_url=avatar_url
-    )
-    if embed is not None:
-        webhook.add_embed(embed)
-    webhook.execute()
-    return webhook
+def send_webhook(content: str, webhook_urls: list, avatar_url: str = "", embed: DiscordEmbed = None) -> list[DiscordWebhook]:
+    webhooks = []
+    for webhook_url in webhook_urls:
+        webhook = DiscordWebhook(
+            url=webhook_url,
+            content=content,
+            avatar_url=avatar_url
+        )
+        if embed is not None:
+            webhook.add_embed(embed)
+        webhook.execute()
+        webhooks.append(webhook)
+    return webhooks
 
 
-def send_webhook_starting_download(url: str, vod_index: int, vod_number: int, avatar_url: str, video_infos: Video):
+def send_webhook_starting_download(content: str, vod_index: int, vod_number: int, avatar_url: str, video_infos: Video, webhook_urls: list):
     embed = DiscordEmbed(title=f"Download in progress (VOD {vod_index+1}/{vod_number})", color="3498db")
     embed.set_author(video_infos["creator"]["displayName"], icon_url=avatar_url)
     embed.add_embed_field(name="Title", value=video_infos["title"], inline=False)
@@ -105,10 +108,18 @@ def send_webhook_starting_download(url: str, vod_index: int, vod_number: int, av
     embed.add_embed_field(name="Length", value=format_time(video_infos["lengthSeconds"]), inline=False)
     embed.set_footer(text=f"VOD id: {video_infos["id"]}")
     embed.set_timestamp()
-    return send_webhook(url, "", avatar_url, embed)
+    return send_webhook(content, webhook_urls, avatar_url, embed)
 
 
-def send_webhook_ending_download(webhook: DiscordWebhook, vod_index: int, vod_number: int, avatar_url: str, video_infos: Video, file_path: str, time_elapsed: timedelta):
+def send_webhook_ending_download(
+        webhook: DiscordWebhook,
+        vod_index: int,
+        vod_number: int,
+        avatar_url: str,
+        video_infos: Video,
+        file_path: str,
+        time_elapsed: timedelta
+    ):
     embed = DiscordEmbed(title=f"Download successful (VOD {vod_index+1}/{vod_number})", color="57f287")
     embed.set_author(video_infos["creator"]["displayName"], icon_url=avatar_url)
     embed.add_embed_field(name="Title", value=video_infos["title"], inline=False)
@@ -124,31 +135,34 @@ def send_webhook_ending_download(webhook: DiscordWebhook, vod_index: int, vod_nu
     webhook.edit()
 
 if __name__ == "__main__":
+    load_dotenv()
     streamers_video_list = read_streamers_csv()
-    config = dotenv_values(".env")
+    number_of_streamers = len(streamers_video_list)
     send_webhook(
-        config["WEBHOOK_URL"], 
-        f"The download script is starting, {len(streamers_video_list)} streamers loaded.", 
+        f"The download script is starting, {len(streamers_video_list)} streamers loaded.", [os.environ.get("WEBHOOK_URL")],
         "https://pbs.twimg.com/profile_images/1938396805336563712/Wihg-eQ-_400x400.jpg"
     )
-    for streamer in streamers_video_list:
+    for streamer_index, streamer in enumerate(streamers_video_list):
         streamer_name = streamer["streamer"]
         new_vods = get_new_vods_id(streamer_name, streamer["video_id"])
         avatar_url = requests.get(f"https://decapi.me/twitch/avatar/{streamer_name}").content.decode()
+        webhook_urls = [os.environ.get("WEBHOOK_URL"), streamer["webhook_url"]] if len(streamer["webhook_url"]) != 0 else [os.environ.get("WEBHOOK_URL")]
         if len(new_vods) == 0:
             send_webhook(
-                config["WEBHOOK_URL"],
                 f"No VODs to download yet{
-                    f", but **{streamer_name}** is currently live." if is_streamer_live(streamer_name) 
-                    else f" for **{streamer_name}**."
+                    f", but **{streamer_name}** is currently live. ({streamer_index+1}/{number_of_streamers})" if is_streamer_live(streamer_name) 
+                    else f" for **{streamer_name}**. ({streamer_index+1}/{number_of_streamers})"
                 }",
-                avatar_url
+                webhook_urls,
+                avatar_url,
             )
         for index, new_vod in enumerate(new_vods):
             video_infos = get_video(new_vod)
             file_path = video_filename(video_infos, "mp4", f"D:/vods/{streamer_name}" + "/{date}_{id}_{channel_login}_{title_slug}.{format}")
             starting_date = datetime.now(timezone.utc)
-            webhook = send_webhook_starting_download(config["WEBHOOK_URL"], index, len(new_vods), avatar_url, video_infos)
+            webhooks = send_webhook_starting_download(
+                f"Streamer {streamer_index+1}/{number_of_streamers}" , index, len(new_vods), avatar_url, video_infos, webhook_urls
+            )
 
             download_process(streamer_name, new_vod)
 
@@ -157,4 +171,10 @@ if __name__ == "__main__":
 
             ending_date = datetime.now(timezone.utc)
             time_elapsed= ending_date - starting_date
-            send_webhook_ending_download(webhook, index, len(new_vods), avatar_url, video_infos, file_path, time_elapsed)
+            for webhook in webhooks:
+                send_webhook_ending_download(webhook, index, len(new_vods), avatar_url, video_infos, file_path, time_elapsed)
+    send_webhook(
+        "Download script has ended.",
+        [os.environ.get("WEBHOOK_URL")],
+        "https://pbs.twimg.com/profile_images/1938396805336563712/Wihg-eQ-_400x400.jpg"
+    )
