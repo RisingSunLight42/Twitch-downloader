@@ -68,6 +68,7 @@ def download_process(streamer: str, id: str):
             "overwrite": True,
             "start": None,
             "end": None,
+            "rate_limit": int(os.environ.get("MAX_DOWNLOAD_SPEED")),
             "cache_dir": f"{get_cache_dir()}/videos/{id}/",
             "output": f"D:/vods/{streamer}" + "/{date}_{id}_{channel_login}_{title_slug}.{format}",
         }
@@ -78,7 +79,7 @@ def download_process(streamer: str, id: str):
 def write_streamers_csv(streamers_video_list):
     """To write the CSV containing the id of the last video download for x streamer."""
     with open("streamers.csv", "w", newline="") as csvFile:
-        fieldnames = ['streamer', 'video_id']
+        fieldnames = ['streamer', 'video_id', 'webhook_url']
         writer = csv.DictWriter(csvFile, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(streamers_video_list)
@@ -153,7 +154,7 @@ if __name__ == "__main__":
                     f", but **{streamer_name}** is currently live. ({streamer_index+1}/{number_of_streamers})" if is_streamer_live(streamer_name) 
                     else f" for **{streamer_name}**. ({streamer_index+1}/{number_of_streamers})"
                 }",
-                webhook_urls,
+                [os.environ.get("WEBHOOK_URL")],
                 avatar_url,
             )
         for index, new_vod in enumerate(new_vods):
