@@ -1,7 +1,7 @@
 import csv
 import requests
 import os
-import io
+import sys
 from pathlib import Path
 from twitchdl.commands.download import download_one
 from twitchdl.cache import get_cache_dir
@@ -13,6 +13,50 @@ from discord_webhook import DiscordWebhook, DiscordEmbed
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 from contextlib import redirect_stdout
+from re import findall
+
+class TeeStream:
+    def __init__(self, webhooks: list[DiscordWebhook], index: int, vod_number: int, avatar_url: str, video_infos: Video):
+        self.progress = 0
+        self.original = sys.__stdout__
+        self.webhooks = webhooks
+        self.index = index
+        self.vod_number = vod_number
+        self.avatar_url = avatar_url
+        self.video_infos = video_infos
+        self.has_been_skipped = False
+    
+    def _handle_percent(self, text: str):
+        percent = findall(r"\d{1,3}%", text)
+        if len(percent) == 0:
+            return
+        percent = int(percent[0].replace("%", ""))
+        if (self.progress == percent):
+            return
+        self.progress = percent
+        for webhook in webhooks:
+            send_webhook_updating_download(webhook, self.index, self.vod_number, self.avatar_url, self.video_infos, self.progress)
+    
+    def _handle_skip(self, text: str):
+        if self.has_been_skipped:
+            return
+        self.has_been_skipped = "skipping download" in text
+
+    def write(self, text: str):
+        self.original.write(text)
+        self._handle_percent(text)
+        self._handle_skip(text)
+
+    def flush(self):
+        self.original.flush()
+
+    def isatty(self):
+        return self.original.isatty()
+
+    @property
+    def encoding(self):
+        return self.original.encoding
+    
 
 # idée amélioration : afficher les stats des VODs à DL (nombre, total de GB, total de durée...)
 # faire blacklist de certains mots dans les titres pour skip certaines vods inutiles (combo whitelist de streamers où on veut
@@ -106,6 +150,20 @@ def send_webhook_starting_download(content: str, vod_index: int, vod_number: int
     return send_webhook(content, webhook_urls, avatar_url, embed)
 
 
+def send_webhook_updating_download(webhook: DiscordWebhook, vod_index: int, vod_number: int, avatar_url: str, video_infos: Video, progress: int):
+    embed = DiscordEmbed(title=f"Download in progress (VOD {vod_index+1}/{vod_number})", color="e67e22")
+    embed.set_author(video_infos["creator"]["displayName"], icon_url=avatar_url)
+    embed.add_embed_field(name="Title", value=video_infos["title"], inline=False)
+    embed.add_embed_field(name="Game", value=video_infos["game"]["name"])
+    embed.add_embed_field(name="Date published", value=video_infos["publishedAt"].replace("T"," ").replace("Z", ""), inline=False)
+    embed.add_embed_field(name="Length", value=format_time(video_infos["lengthSeconds"]))
+    embed.add_embed_field(name="Progress", value=f"{progress}%")
+    embed.set_footer(text=f"VOD id: {video_infos["id"]}")
+    embed.set_timestamp()
+    webhook.remove_embeds()
+    webhook.add_embed(embed)
+    webhook.edit()
+
 def send_webhook_ending_download(
         webhook: DiscordWebhook,
         vod_index: int,
@@ -162,20 +220,18 @@ if __name__ == "__main__":
                 f"Streamer {streamer_index+1}/{number_of_streamers}" , index, len(new_vods), avatar_url, video_infos, webhook_urls
             )
 
-            f = io.StringIO()
-            with redirect_stdout(f):
+            stream = TeeStream(webhooks, index, len(new_vods), avatar_url, video_infos)
+            with redirect_stdout(stream):
                 download_process(streamer_name, new_vod)
-            out = f.getvalue()
-            has_been_skipped = "skipping download" in out
 
-            if not has_been_skipped:
+            if not stream.has_been_skipped:
                 streamer["video_id"] = new_vod
                 write_streamers_csv(streamers_video_list)
 
             ending_date = datetime.now(timezone.utc)
             time_elapsed= ending_date - starting_date
             for webhook in webhooks:
-                send_webhook_ending_download(webhook, index, len(new_vods), avatar_url, video_infos, file_path, time_elapsed, has_been_skipped)
+                send_webhook_ending_download(webhook, index, len(new_vods), avatar_url, video_infos, file_path, time_elapsed, stream.has_been_skipped)
 
     send_webhook(
         "Download script has ended.",
