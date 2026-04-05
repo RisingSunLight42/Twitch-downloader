@@ -1,0 +1,2 @@
+streamer,video_id,webhook_url
+risingsunlightrsl,0 (you can keep it at 0, the program will proceed to download all vods and update it automatically, remove this comment when you're creating your csv),(only used when you can to send another webhook in another channel, can be blank, remove this comment when you're creating your csv)
