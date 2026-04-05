@@ -5,9 +5,7 @@ from utils.twitch import TwitchInteraction
 from datetime import datetime, timezone
 from contextlib import redirect_stdout
 
-# idée amélioration : afficher les stats des VODs à DL (nombre, total de GB, total de durée...)
-# faire blacklist de certains mots dans les titres pour skip certaines vods inutiles (combo whitelist de streamers où on veut
-# tout DL anyway)
+
 if __name__ == "__main__":
     env_manager = EnvManager()
     streamers_video_list = StreamerCSVInteraction.read_streamers_csv()
