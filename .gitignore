@@ -1,3 +1,4 @@
 vods/
 streamers.csv
 .env
+venv/
