@@ -1,6 +1,7 @@
 import csv
 import requests
 import os
+import io
 from pathlib import Path
 from twitchdl.commands.download import download_one
 from twitchdl.cache import get_cache_dir
@@ -11,6 +12,7 @@ from twitchdl.entities import Video
 from discord_webhook import DiscordWebhook, DiscordEmbed
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
+from contextlib import redirect_stdout
 
 # idée amélioration : afficher les stats des VODs à DL (nombre, total de GB, total de durée...)
 # faire blacklist de certains mots dans les titres pour skip certaines vods inutiles (combo whitelist de streamers où on veut
@@ -31,12 +33,6 @@ def read_streamers_csv() -> list[dict]:
     return streamers_video_list
 
 
-def is_streamer_live(channel_id: str) -> bool:
-    """Check if given streamer is currently live."""
-    content = requests.get("https://decapi.me/twitch/uptime/" + channel_id + "?offline_msg=off").content.decode("utf-8")
-    return not "off" in content
-
-
 def get_new_vods_id(streamer: str, last_vod_downloaded_id: str) -> list[str]:
     """Get new vods id, list returned is sort by older to newer."""
     last_vod_downloaded_id = int(last_vod_downloaded_id)
@@ -49,9 +45,6 @@ def get_new_vods_id(streamer: str, last_vod_downloaded_id: str) -> list[str]:
         new_vods.insert(0, video["id"])
     if len(new_vods) == 0:
         return []
-    is_live = is_streamer_live(streamer)
-    if is_live:
-        new_vods.pop()
     return new_vods
 
 
@@ -71,6 +64,7 @@ def download_process(streamer: str, id: str):
             "rate_limit": int(os.environ.get("MAX_DOWNLOAD_SPEED")),
             "cache_dir": f"{get_cache_dir()}/videos/{id}/",
             "output": f"D:/vods/{streamer}" + "/{date}_{id}_{channel_login}_{title_slug}.{format}",
+            "skip_live": True
         }
     )
     download_one(id, download_args)
@@ -119,8 +113,14 @@ def send_webhook_ending_download(
         avatar_url: str,
         video_infos: Video,
         file_path: str,
-        time_elapsed: timedelta
+        time_elapsed: timedelta,
+        has_been_skipped: bool = False,
     ):
+    if has_been_skipped:
+        webhook.content = f"VOD {video_infos["id"]} has been skipped because **{video_infos["creator"]["displayName"]}** is currently live."
+        webhook.remove_embeds()
+        webhook.edit()
+        return
     embed = DiscordEmbed(title=f"Download successful (VOD {vod_index+1}/{vod_number})", color="57f287")
     embed.set_author(video_infos["creator"]["displayName"], icon_url=avatar_url)
     embed.add_embed_field(name="Title", value=video_infos["title"], inline=False)
@@ -150,10 +150,7 @@ if __name__ == "__main__":
         webhook_urls = [os.environ.get("WEBHOOK_URL"), streamer["webhook_url"]] if len(streamer["webhook_url"]) != 0 else [os.environ.get("WEBHOOK_URL")]
         if len(new_vods) == 0:
             send_webhook(
-                f"No VODs to download yet{
-                    f", but **{streamer_name}** is currently live. ({streamer_index+1}/{number_of_streamers})" if is_streamer_live(streamer_name) 
-                    else f" for **{streamer_name}**. ({streamer_index+1}/{number_of_streamers})"
-                }",
+                f"No VODs to download yet for **{streamer_name}**. ({streamer_index+1}/{number_of_streamers})",
                 [os.environ.get("WEBHOOK_URL")],
                 avatar_url,
             )
@@ -165,15 +162,21 @@ if __name__ == "__main__":
                 f"Streamer {streamer_index+1}/{number_of_streamers}" , index, len(new_vods), avatar_url, video_infos, webhook_urls
             )
 
-            download_process(streamer_name, new_vod)
+            f = io.StringIO()
+            with redirect_stdout(f):
+                download_process(streamer_name, new_vod)
+            out = f.getvalue()
+            has_been_skipped = "skipping download" in out
 
-            streamer["video_id"] = new_vod
-            write_streamers_csv(streamers_video_list)
+            if not has_been_skipped:
+                streamer["video_id"] = new_vod
+                write_streamers_csv(streamers_video_list)
 
             ending_date = datetime.now(timezone.utc)
             time_elapsed= ending_date - starting_date
             for webhook in webhooks:
-                send_webhook_ending_download(webhook, index, len(new_vods), avatar_url, video_infos, file_path, time_elapsed)
+                send_webhook_ending_download(webhook, index, len(new_vods), avatar_url, video_infos, file_path, time_elapsed, has_been_skipped)
+
     send_webhook(
         "Download script has ended.",
         [os.environ.get("WEBHOOK_URL")],
