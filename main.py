@@ -1,6 +1,6 @@
 from utils.discord import DiscordInteraction
 from utils.general import StdoutWrapper, EnvManager
-from utils.streamer_csv import StreamerCSVInteraction
+from utils.streamer_csv import StreamerJsonInteraction
 from utils.twitch import TwitchInteraction
 from datetime import datetime, timezone
 from contextlib import redirect_stdout
@@ -8,7 +8,7 @@ from contextlib import redirect_stdout
 
 if __name__ == "__main__":
     env_manager = EnvManager()
-    streamers_video_list = StreamerCSVInteraction.read_streamers_csv()
+    streamers_video_list = StreamerJsonInteraction.read_streamers_json()
     number_of_streamers = len(streamers_video_list)
     DiscordInteraction.send_webhook(
         f"The download script is starting, {len(streamers_video_list)} streamers loaded.", [env_manager.WEBHOOK_URL],
@@ -18,7 +18,7 @@ if __name__ == "__main__":
         streamer_name = streamer["streamer"]
         new_vods = TwitchInteraction.get_new_vods_id(streamer_name, streamer["video_id"])
         avatar_url = TwitchInteraction.get_streamer_avatar(streamer_name)
-        webhook_urls = [env_manager.WEBHOOK_URL, streamer["webhook_url"]] if len(streamer["webhook_url"]) != 0 else [env_manager.WEBHOOK_URL]
+        webhook_urls = [env_manager.WEBHOOK_URL, streamer["webhooks_url"]] if len(streamer["webhooks_url"]) != 0 else [env_manager.WEBHOOK_URL]
         if len(new_vods) == 0:
             DiscordInteraction.send_webhook(
                 f"No VODs to download yet for **{streamer_name}**. ({streamer_index+1}/{number_of_streamers})",
@@ -39,7 +39,7 @@ if __name__ == "__main__":
 
             if not stream.has_been_skipped:
                 streamer["video_id"] = new_vod
-                StreamerCSVInteraction.write_streamers_csv(streamers_video_list)
+                StreamerJsonInteraction.write_streamers_json(streamers_video_list)
 
             ending_date = datetime.now(timezone.utc)
             time_elapsed= ending_date - starting_date

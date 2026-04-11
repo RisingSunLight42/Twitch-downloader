@@ -1,5 +1,6 @@
 vods/
 streamers.csv
+streamers.json
 .env
 venv/
 utils/__pycache__/
