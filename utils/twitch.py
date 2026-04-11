@@ -1,5 +1,4 @@
 import requests
-from pathlib import Path
 from twitchdl.cache import get_cache_dir
 from twitchdl.commands.download import download_one
 from twitchdl.entities import Video
@@ -23,9 +22,8 @@ class TwitchInteraction:
         return new_vods
 
 
-    def download_process(streamer: str, id: str, max_download_speed: int):
+    def download_process(streamer: str, id: str, max_download_speed: int, output_path: str):
         """Download the given vod id, in the streamer folder."""
-        Path(f"D:/vods/{streamer}").mkdir(parents=True, exist_ok=True)
         download_args = DotDict(
             {
                 "format": "mp4",
@@ -38,7 +36,7 @@ class TwitchInteraction:
                 "end": None,
                 "rate_limit": max_download_speed,
                 "cache_dir": f"{get_cache_dir()}/videos/{id}/",
-                "output": f"D:/vods/{streamer}" + "/{date}_{id}_{channel_login}_{title_slug}.{format}",
+                "output": output_path,
                 "skip_live": True
             }
         )

@@ -62,3 +62,4 @@ class EnvManager():
         load_dotenv()
         self.WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
         self.MAX_DOWNLOAD_SPEED = int(os.environ.get("MAX_DOWNLOAD_SPEED"))
+        self.DOWNLOAD_PATH = os.environ.get("DOWNLOAD_PATH")

@@ -2,6 +2,7 @@ from utils.discord import DiscordInteraction
 from utils.general import StdoutWrapper, EnvManager
 from utils.streamer_json import StreamerJsonInteraction
 from utils.twitch import TwitchInteraction
+from pathlib import Path
 from datetime import datetime, timezone
 from contextlib import redirect_stdout
 
@@ -19,6 +20,9 @@ if __name__ == "__main__":
         new_vods = TwitchInteraction.get_new_vods_id(streamer_name, streamer["video_id"])
         avatar_url = TwitchInteraction.get_streamer_avatar(streamer_name)
         webhook_urls = [env_manager.WEBHOOK_URL] + streamer["webhook_urls"]
+        streamer_folder = f"{env_manager.DOWNLOAD_PATH}{streamer_name}"
+        Path(streamer_folder).mkdir(parents=True, exist_ok=True)
+        output_path = streamer_folder + "/{date}_{id}_{channel_login}_{title_slug}.{format}"
         if len(new_vods) == 0:
             DiscordInteraction.send_webhook(
                 f"No VODs to download yet for **{streamer_name}**. ({streamer_index+1}/{number_of_streamers})",
@@ -27,7 +31,7 @@ if __name__ == "__main__":
             )
         for index, new_vod in enumerate(new_vods):
             video_infos = TwitchInteraction.get_video(new_vod)
-            file_path = TwitchInteraction.video_filename(video_infos, "mp4", f"D:/vods/{streamer_name}" + "/{date}_{id}_{channel_login}_{title_slug}.{format}")
+            file_path = TwitchInteraction.video_filename(video_infos, "mp4", output_path)
             starting_date = datetime.now(timezone.utc)
             webhooks = DiscordInteraction.send_webhook_starting_download(
                 f"Streamer {streamer_index+1}/{number_of_streamers}" , index, len(new_vods), avatar_url, video_infos, webhook_urls
@@ -35,7 +39,7 @@ if __name__ == "__main__":
 
             stream = StdoutWrapper(webhooks, index, len(new_vods), avatar_url, video_infos)
             with redirect_stdout(stream):
-                TwitchInteraction.download_process(streamer_name, new_vod, env_manager.MAX_DOWNLOAD_SPEED)
+                TwitchInteraction.download_process(streamer_name, new_vod, env_manager.MAX_DOWNLOAD_SPEED, output_path)
 
             if not stream.has_been_skipped:
                 streamer["video_id"] = new_vod
