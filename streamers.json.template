@@ -1,0 +1,7 @@
+[
+    {
+        "streamer": "risingsunlightrsl", // streamer name (url format)
+        "video_id": "0", // the video_id of the stream, put it at 0 if you don't want to start at a specific one
+        "webhook_urls": [] // fill it with all the webhook urls you need IN ADDITION to the one in your env
+    }
+]

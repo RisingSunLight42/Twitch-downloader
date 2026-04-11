@@ -9,7 +9,7 @@ This project is possible thanks to the [twitch-dl](https://github.com/ihabunek/t
 2. Activate the virtual environment `.\venv\Scripts\activate`
 3. Install the required packages `python install -r requirements`
 4. Create a `.env` file that match the template
-5. Create a `streamers.csv` file that match the template and fill it with your wanted streamer
+5. Create a `streamers.json` file that match the template and fill it with your wanted streamer(s)
 6. Run the script with `py main.py`
 7. You may need further setup to make `twitch-dl` work, see the README of the project for more information
 
