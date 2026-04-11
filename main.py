@@ -1,6 +1,6 @@
 from utils.discord import DiscordInteraction
 from utils.general import StdoutWrapper, EnvManager
-from utils.streamer_csv import StreamerJsonInteraction
+from utils.streamer_json import StreamerJsonInteraction
 from utils.twitch import TwitchInteraction
 from datetime import datetime, timezone
 from contextlib import redirect_stdout
@@ -18,7 +18,7 @@ if __name__ == "__main__":
         streamer_name = streamer["streamer"]
         new_vods = TwitchInteraction.get_new_vods_id(streamer_name, streamer["video_id"])
         avatar_url = TwitchInteraction.get_streamer_avatar(streamer_name)
-        webhook_urls = [env_manager.WEBHOOK_URL, streamer["webhooks_url"]] if len(streamer["webhooks_url"]) != 0 else [env_manager.WEBHOOK_URL]
+        webhook_urls = [env_manager.WEBHOOK_URL] + streamer["webhook_urls"]
         if len(new_vods) == 0:
             DiscordInteraction.send_webhook(
                 f"No VODs to download yet for **{streamer_name}**. ({streamer_index+1}/{number_of_streamers})",
